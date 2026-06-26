@@ -124,6 +124,8 @@ document.addEventListener('pointerlockchange', () => { isLocked = document.point
 // 角色
 // ══════════════════════════════════════════════
 const player = new THREE.Group(); scene.add(player);
+let rightArm: THREE.Group, leftArm: THREE.Group, flashlightModel: THREE.Group;
+
 function buildPlayerModel(): void {
   const skin = new THREE.MeshStandardMaterial({ color: 0xf4d4a8, roughness: 0.7 });
   const blue = new THREE.MeshStandardMaterial({ color: 0x3366aa, roughness: 0.6 });
@@ -134,10 +136,29 @@ function buildPlayerModel(): void {
     player.add(new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.08, 0.2), shoe)).position.set(lx, 0.04, 0.02);
   });
   player.add(new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.5, 0.25), blue)).position.set(0, 0.65, 0);
-  [[-0.28, 0],[0.28, 0]].forEach(([ax,az]) => {
-    player.add(new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.4, 0.12), blue)).position.set(ax, 0.55, az);
-    player.add(new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), skin)).position.set(ax, 0.3, az);
-  });
+
+  // 左臂
+  leftArm = new THREE.Group(); leftArm.name = 'leftArm'; leftArm.position.set(-0.28, 0.65, 0);
+  leftArm.add(new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.4, 0.12), blue)).position.set(0, -0.1, 0);
+  leftArm.add(new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), skin)).position.set(0, -0.35, 0);
+  player.add(leftArm);
+
+  // 右臂 (拿手电筒)
+  rightArm = new THREE.Group(); rightArm.name = 'rightArm'; rightArm.position.set(0.28, 0.65, 0);
+  rightArm.add(new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.4, 0.12), blue)).position.set(0, -0.1, 0);
+  rightArm.add(new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), skin)).position.set(0, -0.35, 0);
+  player.add(rightArm);
+
+  // 手电筒模型（绑在右臂末端）
+  flashlightModel = new THREE.Group();
+  const flBody = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.15, 8), new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.8, roughness: 0.3 }));
+  flBody.rotation.x = Math.PI/2; flashlightModel.add(flBody);
+  const flHead = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.03, 0.05, 8), new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.9, roughness: 0.2 }));
+  flHead.rotation.x = Math.PI/2; flHead.position.set(0, 0.09, 0); flashlightModel.add(flHead);
+  flashlightModel.position.set(0, -0.38, 0.08); flashlightModel.rotation.set(0, Math.PI/2, 0);
+  rightArm.add(flashlightModel);
+
+  // 头
   player.add(new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.32, 0.28), skin)).position.set(0, 1.08, 0);
   player.add(new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.1, 0.3), dark)).position.set(0, 1.28, 0);
   player.add(new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.06, 0.06), dark)).position.set(0, 1.22, 0.14);
@@ -148,6 +169,9 @@ function buildPlayerModel(): void {
 }
 buildPlayerModel();
 player.traverse(c => { if (c instanceof THREE.Mesh) { c.castShadow = true; c.receiveShadow = true; }});
+// 手电筒光源绑定到模型
+flashlightModel.add(flashlight); flashlightModel.add(flashlight.target);
+flashlight.target.position.set(0, 0, -3);
 
 // ══════════════════════════════════════════════
 // 相机
@@ -163,7 +187,8 @@ function updateCamera(): void {
 const flashlight = new THREE.SpotLight(0xffeedd, 20, 12, Math.PI/7, 0.25, 0.6);
 flashlight.castShadow = true; flashlight.shadow.mapSize.set(512, 512);
 flashlight.shadow.camera.near = 0.1; flashlight.shadow.camera.far = 20;
-scene.add(flashlight); scene.add(flashlight.target);
+flashlight.position.set(0, 0, 0.15);
+// 绑到右手手电筒模型上（模型创建后切换绑定）
 
 // ══════════════════════════════════════════════
 // 旁白系统
@@ -583,9 +608,14 @@ function animate(): void {
     const corrected = checkCollision(player.position, moveDelta);
     player.position.add(corrected);
     if (moving) player.rotation.y = Math.atan2(_fwd.x, _fwd.z);
-    // 走路起伏
-    if (moving) { walkBob += dt * 8; player.position.y = Math.abs(Math.sin(walkBob)) * 0.04; }
-    else { player.position.y = 0; walkBob = 0; }
+    // 右臂指向相机方向（手电筒）
+    rightArm.rotation.set(0, 0, 0);
+    rightArm.rotateY(camYaw - player.rotation.y);
+    rightArm.rotateX(-camPitch * 0.6);
+    // 走路起伏 + 手臂摆动
+    if (moving) { walkBob += dt * 8; player.position.y = Math.abs(Math.sin(walkBob)) * 0.04;
+      const swing = Math.sin(walkBob) * 0.2; rightArm.rotation.x += swing * 0.3; leftArm.rotation.x = -swing; }
+    else { player.position.y = 0; walkBob = 0; rightArm.rotation.x *= 0.9; leftArm.rotation.x *= 0.9; }
 
     const b = currentScene === SceneType.Classroom ? CFG.classroom.bounds : CFG.corridor.bounds;
     player.position.x = Math.max(b.minX, Math.min(b.maxX, player.position.x));
@@ -596,8 +626,6 @@ function animate(): void {
     if (moving) { stepTimer += dt; if (stepTimer > CFG.stepInterval) { stepTimer = 0; playStep(); } } else { stepTimer = CFG.stepInterval; }
 
     updateCamera();
-    flashlight.position.copy(camera.position);
-    flashlight.target.position.copy(player.position).add(new THREE.Vector3(0, 1.3, 0));
   }
 
   // 烛火平滑闪烁 (每3帧)
