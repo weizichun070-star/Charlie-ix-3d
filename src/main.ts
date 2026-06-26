@@ -276,6 +276,7 @@ function buildClassroom(): void {
 
   // 天花板灯
   const ceilingLight = new THREE.PointLight(0xffffcc, 5, 10);
+  ceilingLight.castShadow = true; ceilingLight.shadow.mapSize.set(512, 512);
   ceilingLight.position.set(0, rh - 0.3, 0); ceilingLight.name = 'ceilingLight'; sceneRoot.add(ceilingLight);
   scene.add(new THREE.AmbientLight(0x222233, 0.5));
 
