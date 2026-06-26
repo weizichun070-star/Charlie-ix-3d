@@ -571,8 +571,8 @@ function solveDiaryPuzzle(): void {
   if (glow) (glow as THREE.PointLight).intensity = 0;
   playSound(440, 0.1, 'sine', 0.06);
   setTimeout(() => playSound(660, 0.08, 'sine', 0.04), 100);
-  showMessage('日记上刻着四个字母：R H B Z\n旁边有数字 1-10\n密码是什么？', (input: string) => {
-    if (input === '8') {
+  showMessage('日记上刻着四个字母：R H B Z\n旁边有数字 1-10\n密码是什么？', (input) => {
+    if (input && input === '8') {
       playSound(523, 0.1, 'sine', 0.07);
       setTimeout(() => playSound(784, 0.15, 'sine', 0.08), 150);
       showMessage('密码正确！日记里夹着一张藏宝图，\n指向"黑贝街"...', () => {
@@ -597,10 +597,10 @@ function solveClockPuzzle(): void {
 }
 
 // ── 消息弹窗 ──
-let messageCallback: ((input?: string) => boolean | void) | null = null;
+let messageCallback: ((input?: string) => any) | null = null;
 let messageInput = '';
 
-function showMessage(text: string, cb: (input?: string) => boolean | void): void {
+function showMessage(text: string, cb: (input?: string) => any): void {
   const overlay = document.getElementById('overlay')!;
   const msgText = document.getElementById('msg-text')!;
   const msgInput = document.getElementById('msg-input') as HTMLInputElement;
