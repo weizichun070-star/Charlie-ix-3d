@@ -79,16 +79,24 @@ const knobMat = new THREE.MeshStandardMaterial({ color: 0xddaa44, roughness: 0.2
 const keys: Record<string, boolean> = {};
 document.addEventListener('keydown', e => { const k = e.key.toLowerCase(); if ('wasde'.includes(k)) { keys[k] = true; e.preventDefault(); }});
 document.addEventListener('keyup', e => { const k = e.key.toLowerCase(); if ('wasde'.includes(k)) { keys[k] = false; e.preventDefault(); }});
-let yaw = Math.PI, pitch = 0; // 初始面向黑板（+Z方向）
+const SENSITIVITY = 0.003;
+let yaw = Math.PI, pitch = 0;
 let isLocked = false;
 
-renderer.domElement.addEventListener('click', () => renderer.domElement.requestPointerLock());
-document.addEventListener('pointerlockchange', () => { isLocked = document.pointerLockElement === renderer.domElement; });
+// 初始化相机朝向：面向 +Z（黑板方向）
+camera.rotation.order = 'YXZ';
+camera.rotation.y = yaw;
+camera.rotation.x = pitch;
+
+renderer.domElement.addEventListener('click', () => { renderer.domElement.requestPointerLock(); });
+document.addEventListener('pointerlockchange', () => {
+  isLocked = document.pointerLockElement === renderer.domElement;
+});
 document.addEventListener('mousemove', e => {
   if (!isLocked) return;
-  yaw -= e.movementX * 0.002;
-  pitch -= e.movementY * 0.002;
-  pitch = Math.max(-Math.PI/3, Math.min(Math.PI/3, pitch));
+  yaw -= e.movementX * SENSITIVITY;
+  pitch -= e.movementY * SENSITIVITY;
+  pitch = Math.max(-1.0, Math.min(1.0, pitch)); // ~57 degrees up/down
   camera.rotation.order = 'YXZ';
   camera.rotation.y = yaw;
   camera.rotation.x = pitch;
