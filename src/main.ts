@@ -595,7 +595,7 @@ function solveClock(): void {
 // 主循环
 // ══════════════════════════════════════════════
 const clock3 = new THREE.Clock();
-let stepTimer = 0, candleCounter = 0, walkBob = 0;
+let stepTimer = 0, candleCounter = 0, walkBob = 0, armSwing = 0;
 
 function animate(): void {
   requestAnimationFrame(animate);
@@ -615,14 +615,16 @@ function animate(): void {
     const corrected = checkCollision(player.position, moveDelta);
     player.position.add(corrected);
     if (moving) player.rotation.y = Math.atan2(_fwd.x, _fwd.z);
-    // 右臂指向相机方向（手电筒）
-    rightArm.rotation.set(0, 0, 0);
-    rightArm.rotateY(camYaw - player.rotation.y);
-    rightArm.rotateX(-camPitch * 0.6);
-    // 走路起伏 + 手臂摆动
-    if (moving) { walkBob += dt * 8; player.position.y = Math.abs(Math.sin(walkBob)) * 0.04;
-      const swing = Math.sin(walkBob) * 0.2; rightArm.rotation.x += swing * 0.3; leftArm.rotation.x = -swing; }
-    else { player.position.y = 0; walkBob = 0; rightArm.rotation.x *= 0.9; leftArm.rotation.x *= 0.9; }
+    // 手臂摆动量（逐帧衰减，不混入相机跟随）
+    if (moving) { walkBob += dt * 8; player.position.y = Math.abs(Math.sin(walkBob)) * 0.04; armSwing = Math.sin(walkBob) * 0.2; }
+    else { player.position.y = 0; walkBob = 0; armSwing *= 0.9; }
+    // 右臂方向：相机跟随 + 走路摆动
+    const armYaw = camYaw - player.rotation.y;
+    const armPitch = -camPitch * 0.6 + armSwing * 0.3;
+    rightArm.rotation.order = 'YXZ';
+    rightArm.rotation.set(armPitch, armYaw, 0);
+    leftArm.rotation.order = 'YXZ';
+    leftArm.rotation.set(-armSwing, 0, 0);
 
     const b = currentScene === SceneType.Classroom ? CFG.classroom.bounds : CFG.corridor.bounds;
     player.position.x = Math.max(b.minX, Math.min(b.maxX, player.position.x));
