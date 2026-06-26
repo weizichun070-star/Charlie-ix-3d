@@ -226,7 +226,15 @@ let diarySolved = false, clockSolved = false;
 let ambientOsc: OscillatorNode | null = null;
 const ambientTexts: Record<string, string> = {};
 
+const activeTimeouts: number[] = [];
+function safeSetTimeout(cb: () => void, delay: number): number {
+  const id = window.setTimeout(() => { const i = activeTimeouts.indexOf(id); if (i !== -1) activeTimeouts.splice(i, 1); cb(); }, delay);
+  activeTimeouts.push(id); return id;
+}
+function clearAllTimeouts(): void { activeTimeouts.forEach(id => clearTimeout(id)); activeTimeouts.length = 0; }
+
 function clearScene(): void {
+  clearAllTimeouts();
   while (sceneRoot.children.length > 0) sceneRoot.remove(sceneRoot.children[0]);
   interactiveObjects = []; sconces.length = 0; colliders.length = 0;
 }
@@ -519,11 +527,10 @@ function toggleDoor(): void {
       overlay.style.display = 'flex'; overlay.style.background = 'rgba(0,0,0,0.95)';
       const msg = document.getElementById('msg-text')!;
       msg.textContent = ''; document.getElementById('msg-input')!.style.display = 'none';
-      setTimeout(() => {
+      safeSetTimeout(() => {
         overlay.style.display = 'none';
         switchToHallway();
-        // 烛台逐个亮起
-        sconces.forEach((s, i) => { s.visible = false; setTimeout(() => { s.visible = true; playSound(100+i*20,0.3,'sine',0.03); }, i * 600); });
+        sconces.forEach((s, i) => { s.visible = false; safeSetTimeout(() => { s.visible = true; playSound(100+i*20,0.3,'sine',0.03); }, i * 600); });
       }, 2000);
     }
   }
