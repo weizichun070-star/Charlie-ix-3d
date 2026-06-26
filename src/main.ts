@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
 
 // ── 全局 ──
 const scene = new THREE.Scene();
@@ -79,28 +80,11 @@ const knobMat = new THREE.MeshStandardMaterial({ color: 0xddaa44, roughness: 0.2
 const keys: Record<string, boolean> = {};
 document.addEventListener('keydown', e => { const k = e.key.toLowerCase(); if ('wasde'.includes(k)) { keys[k] = true; e.preventDefault(); }});
 document.addEventListener('keyup', e => { const k = e.key.toLowerCase(); if ('wasde'.includes(k)) { keys[k] = false; e.preventDefault(); }});
-const SENSITIVITY = 0.003;
-let yaw = Math.PI, pitch = 0;
-let isLocked = false;
+const controls = new PointerLockControls(camera, renderer.domElement);
 
-// 初始化相机朝向：面向 +Z（黑板方向）
-camera.rotation.order = 'YXZ';
-camera.rotation.y = yaw;
-camera.rotation.x = pitch;
-
-renderer.domElement.addEventListener('click', () => { renderer.domElement.requestPointerLock(); });
-document.addEventListener('pointerlockchange', () => {
-  isLocked = document.pointerLockElement === renderer.domElement;
-});
-document.addEventListener('mousemove', e => {
-  if (!isLocked) return;
-  yaw -= e.movementX * SENSITIVITY;
-  pitch -= e.movementY * SENSITIVITY;
-  pitch = Math.max(-1.0, Math.min(1.0, pitch)); // ~57 degrees up/down
-  camera.rotation.order = 'YXZ';
-  camera.rotation.y = yaw;
-  camera.rotation.x = pitch;
-});
+renderer.domElement.addEventListener('click', () => { controls.lock(); });
+controls.addEventListener('lock', () => { (document.getElementById('info')!).textContent = 'WASD 移动 | 鼠标环顾 | E 交互'; });
+controls.addEventListener('unlock', () => { (document.getElementById('info')!).textContent = '点击画面锁定鼠标'; });
 
 const flashlight = new THREE.SpotLight(0xffeedd, 20, 12, Math.PI/7, 0.25, 0.6);
 flashlight.castShadow = true; flashlight.shadow.mapSize.set(512, 512);
@@ -350,8 +334,9 @@ function buildClassroom(): void {
     sceneRoot.add(dot);
   }
 
-  // 玩家起点
+  // 玩家起点 — 面向黑板（+Z方向）
   camera.position.set(0, 1.6, 3);
+  camera.rotation.set(0, Math.PI, 0); // yaw=PI looks at +Z
   flashlight.intensity = 5;
 
   setObjective('探索教室：找到地上的日记本 [E键交互]');
@@ -659,7 +644,7 @@ function animate(): void {
   requestAnimationFrame(animate);
   const dt = Math.min(clock3.getDelta(), 0.1);
 
-  if (isLocked && document.getElementById('overlay')!.style.display !== 'flex') {
+  if (controls.isLocked && document.getElementById('overlay')!.style.display !== 'flex') {
     const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
     fwd.y = 0; fwd.normalize();
     const rgt = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
