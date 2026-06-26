@@ -220,7 +220,8 @@ let interactiveObjects: THREE.Object3D[] = [];
 const sconces: THREE.Group[] = [];
 let dustPoints: THREE.Points | null = null;
 let doorGroup: THREE.Group;
-let doorClosed = true;
+let doorClosed = true, doorAnimating = false;
+let doorTimeout: number | null = null;
 let diarySolved = false, clockSolved = false;
 let ambientOsc: OscillatorNode | null = null;
 const ambientTexts: Record<string, string> = {};
@@ -501,13 +502,17 @@ document.addEventListener('keydown', (e) => {
 // ══════════════════════════════════════════════
 function switchToHallway(): void { clearScene(); currentScene = SceneType.Corridor; buildHallway(); }
 function toggleDoor(): void {
+  if (doorAnimating) return; // 动画锁，防止连按
+  doorAnimating = true;
+  if (doorTimeout) { clearTimeout(doorTimeout); doorTimeout = null; }
   const targetAngle = doorClosed ? -Math.PI/2 : 0, startAngle = doorClosed ? 0 : -Math.PI/2;
   let progress = 0; const startTime = performance.now(); doorClosed = !doorClosed;
   function anim(now: number): void {
     progress = Math.min((now - startTime) / 1000, 1);
     doorGroup.rotation.y = startAngle + (targetAngle - startAngle) * (1 - Math.pow(1 - progress, 3));
     if (progress < 1) requestAnimationFrame(anim);
-    else if (currentScene === SceneType.Classroom && !doorClosed) {
+    else { doorAnimating = false; }
+    if (progress >= 1 && currentScene === SceneType.Classroom && !doorClosed) {
       colliders.length = 0; // 门已开，清除碰撞体避免卡空气墙
       narration.say('门缓缓打开…走廊深处一片漆黑。', 3000);
       const overlay = document.getElementById('overlay')!;
