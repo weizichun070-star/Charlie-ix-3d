@@ -102,8 +102,8 @@ const colliders: THREE.Box3[] = [];
 function addCollider(obj: THREE.Object3D): void { colliders.push(new THREE.Box3().setFromObject(obj)); }
 function checkCollision(playerPos: THREE.Vector3, delta: THREE.Vector3): THREE.Vector3 {
   const result = delta.clone(); const hw = 0.25, hd = 0.2, hh = 0.7;
-  _playerBox.min.set(playerPos.x - hw, 0, playerPos.z - hd);
-  _playerBox.max.set(playerPos.x + hw, hh, playerPos.z + hd);
+  _playerBox.min.set(playerPos.x - hw, playerPos.y, playerPos.z - hd);
+  _playerBox.max.set(playerPos.x + hw, playerPos.y + hh, playerPos.z + hd);
   // 复用_ testBox + _testOffset 避免 GC
   _testBox.copy(_playerBox); _testOffset.set(delta.x, 0, 0); _testBox.translate(_testOffset);
   for (const c of colliders) { if (c.intersectsBox(_testBox)) { result.x = 0; break; } }
@@ -637,7 +637,6 @@ function animate(): void {
     player.position.x = Math.max(b.minX, Math.min(b.maxX, player.position.x));
     const zLim = (currentScene === SceneType.Corridor && doorClosed) ? CFG.corridor.bounds.minZ : (currentScene === SceneType.Corridor ? CFG.corridor.doorOpenMinZ : b.minZ);
     player.position.z = Math.max(zLim, Math.min(b.maxZ, player.position.z));
-    if (!moving) player.position.y = 0;
 
     if (moving) { stepTimer += dt; if (stepTimer > CFG.stepInterval) { stepTimer = 0; playStep(); } } else { stepTimer = CFG.stepInterval; }
 
