@@ -14,6 +14,7 @@ const CFG = {
 // 复用向量
 const _fwd = new THREE.Vector3(), _rgt = new THREE.Vector3(), _camTarget = new THREE.Vector3(), _lookDir = new THREE.Vector3();
 const _playerBox = new THREE.Box3(), _colliderBox = new THREE.Box3();
+const _testBox = new THREE.Box3(), _testOffset = new THREE.Vector3();
 
 // ══════════════════════════════════════════════
 // 场景 & 渲染器
@@ -103,10 +104,11 @@ function checkCollision(playerPos: THREE.Vector3, delta: THREE.Vector3): THREE.V
   const result = delta.clone(); const hw = 0.25, hd = 0.2, hh = 0.7;
   _playerBox.min.set(playerPos.x - hw, 0, playerPos.z - hd);
   _playerBox.max.set(playerPos.x + hw, hh, playerPos.z + hd);
-  const testX = _playerBox.clone().translate(new THREE.Vector3(delta.x, 0, 0));
-  for (const c of colliders) { if (c.intersectsBox(testX)) { result.x = 0; break; } }
-  const testZ = _playerBox.clone().translate(new THREE.Vector3(0, 0, delta.z));
-  for (const c of colliders) { if (c.intersectsBox(testZ)) { result.z = 0; break; } }
+  // 复用_ testBox + _testOffset 避免 GC
+  _testBox.copy(_playerBox); _testOffset.set(delta.x, 0, 0); _testBox.translate(_testOffset);
+  for (const c of colliders) { if (c.intersectsBox(_testBox)) { result.x = 0; break; } }
+  _testBox.copy(_playerBox); _testOffset.set(0, 0, delta.z); _testBox.translate(_testOffset);
+  for (const c of colliders) { if (c.intersectsBox(_testBox)) { result.z = 0; break; } }
   return result;
 }
 
@@ -124,7 +126,7 @@ document.addEventListener('pointerlockchange', () => { isLocked = document.point
 // 角色
 // ══════════════════════════════════════════════
 const player = new THREE.Group(); scene.add(player);
-let rightArm: THREE.Group, leftArm: THREE.Group, flashlightModel: THREE.Group;
+let rightArm!: THREE.Group, leftArm!: THREE.Group, flashlightModel!: THREE.Group;
 
 function buildPlayerModel(): void {
   const skin = new THREE.MeshStandardMaterial({ color: 0xf4d4a8, roughness: 0.7 });
@@ -169,9 +171,6 @@ function buildPlayerModel(): void {
 }
 buildPlayerModel();
 player.traverse(c => { if (c instanceof THREE.Mesh) { c.castShadow = true; c.receiveShadow = true; }});
-// 手电筒光源绑定到模型
-flashlightModel.add(flashlight); flashlightModel.add(flashlight.target);
-flashlight.target.position.set(0, 0, -3);
 
 // ══════════════════════════════════════════════
 // 相机
@@ -188,6 +187,9 @@ const flashlight = new THREE.SpotLight(0xffeedd, 20, 12, Math.PI/7, 0.25, 0.6);
 flashlight.castShadow = true; flashlight.shadow.mapSize.set(512, 512);
 flashlight.shadow.camera.near = 0.1; flashlight.shadow.camera.far = 20;
 flashlight.position.set(0, 0, 0.15);
+// 手电筒光源绑定到模型
+flashlightModel.add(flashlight); flashlightModel.add(flashlight.target);
+flashlight.target.position.set(0, 0, -3);
 // 绑到右手手电筒模型上（模型创建后切换绑定）
 
 // ══════════════════════════════════════════════
@@ -506,7 +508,7 @@ function toggleDoor(): void {
     doorGroup.rotation.y = startAngle + (targetAngle - startAngle) * (1 - Math.pow(1 - progress, 3));
     if (progress < 1) requestAnimationFrame(anim);
     else if (currentScene === SceneType.Classroom && !doorClosed) {
-      // 门开后：短暂黑幕 → 旁白 → 切换场景
+      colliders.length = 0; // 门已开，清除碰撞体避免卡空气墙
       narration.say('门缓缓打开…走廊深处一片漆黑。', 3000);
       const overlay = document.getElementById('overlay')!;
       overlay.style.display = 'flex'; overlay.style.background = 'rgba(0,0,0,0.95)';
