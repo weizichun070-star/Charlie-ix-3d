@@ -150,20 +150,22 @@ let camYaw = 0, camPitch = 0.3; // 角度
 let isLocked = false;
 
 function updateCamera(): void {
-  const target = new THREE.Vector3(player.position.x, player.position.y + 1.3, player.position.z);
-  const sinY = Math.sin(camYaw), cosY = Math.cos(camYaw);
-  const sinP = Math.sin(camPitch), cosP = Math.cos(camPitch);
+  // 相机在角色后方，camYaw=0 时在 +Z（玩家身后）
+  const tx = player.position.x;
+  const ty = player.position.y + 1.3;
+  const tz = player.position.z;
 
-  const ox = cosY * camOffset.z;
-  const oz = sinY * camOffset.z;
-  const oy = camOffset.y * cosP;
+  const dist = 4.5;
+  const height = 2.2;
+  const cosY = Math.cos(camYaw);
+  const sinY = Math.sin(camYaw);
 
   camera.position.set(
-    target.x - ox,
-    target.y + oy,
-    target.z - oz
+    tx - sinY * dist,
+    ty + height * Math.cos(camPitch),
+    tz + cosY * dist
   );
-  camera.lookAt(target);
+  camera.lookAt(tx, ty, tz);
 }
 
 renderer.domElement.addEventListener('click', () => { renderer.domElement.requestPointerLock(); });
