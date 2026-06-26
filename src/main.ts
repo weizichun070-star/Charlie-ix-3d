@@ -195,6 +195,8 @@ let dustPoints: THREE.Points | null = null;
 let doorGroup: THREE.Group;
 let doorClosed = true;
 let diarySolved = false, clockSolved = false;
+let ambientOsc: OscillatorNode | null = null;
+const ambientTexts: Record<string, string> = {};
 
 function clearScene(): void {
   while (sceneRoot.children.length > 0) sceneRoot.remove(sceneRoot.children[0]);
@@ -225,13 +227,20 @@ function buildClassroom(): void {
   sceneRoot.add(new THREE.Mesh(wGeoZY, dirtyWallMat)).rotation.y = Math.PI/2; (sceneRoot.children[sceneRoot.children.length-1] as THREE.Mesh).position.set(-rw/2, rh/2, 0);
   sceneRoot.add(new THREE.Mesh(wGeoZY, dirtyWallMat)).rotation.y = -Math.PI/2; (sceneRoot.children[sceneRoot.children.length-1] as THREE.Mesh).position.set(rw/2, rh/2, 0);
 
-  // 黑板
-  const board = new THREE.Mesh(new THREE.BoxGeometry(3, 1.2, 0.05), new THREE.MeshStandardMaterial({ color: 0x224422, roughness: 0.6 }));
+  // 黑板 + 粉笔字贴图
+  const chalkCanvas = document.createElement('canvas'); chalkCanvas.width = 512; chalkCanvas.height = 200;
+  const chalkCtx = chalkCanvas.getContext('2d')!;
+  chalkCtx.fillStyle = '#224422'; chalkCtx.fillRect(0, 0, 512, 200);
+  chalkCtx.fillStyle = '#aaccaa'; chalkCtx.font = '28px monospace';
+  chalkCtx.fillText('值日生：墨多多', 140, 50);
+  chalkCtx.fillText('今日作业：第12页 第1-4题', 80, 90);
+  chalkCtx.font = 'italic 22px monospace'; chalkCtx.fillStyle = '#ccddaa';
+  chalkCtx.fillText('R = 18  H = 8  B = 2', 100, 140);
+  const chalkTex = new THREE.CanvasTexture(chalkCanvas);
+  const board = new THREE.Mesh(new THREE.BoxGeometry(3, 1.2, 0.05), new THREE.MeshStandardMaterial({ roughness: 0.6 }));
   board.position.set(0, 2.2, boardZ + 0.03); board.receiveShadow = true; sceneRoot.add(board);
   addCollider(board);
-  sceneRoot.add(new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.8), new THREE.MeshBasicMaterial({ color: 0xaaccaa }))).position.set(0, 2.2, boardZ + 0.06);
-  const boardTextLabel = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.2), new THREE.MeshBasicMaterial({ color: 0x888844 }));
-  boardTextLabel.position.set(0, 1.7, boardZ + 0.06); sceneRoot.add(boardTextLabel);
+  sceneRoot.add(new THREE.Mesh(new THREE.PlaneGeometry(2.8, 1), new THREE.MeshBasicMaterial({ map: chalkTex }))).position.set(0, 2.2, boardZ + 0.06);
 
   // 讲台
   const podium = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.9, 0.6), new THREE.MeshStandardMaterial({ color: 0x6a5a3a, roughness: 0.7 }));
@@ -306,6 +315,20 @@ function buildClassroom(): void {
   interactiveObjects.push(diaryGroup);
   const diaryGlow = new THREE.PointLight(0xffcc44, 0.4, 1.5);
   diaryGlow.position.set(1.5, 0.1, -1); diaryGlow.name = 'diary_glow'; sceneRoot.add(diaryGlow);
+
+  // ── 氛围交互点 ──
+  const ambients: { x:number; z:number; name:string; text:string; }[] = [
+    { x: -2, z: 1, name: 'desk_drawer', text: '抽屉拉开来…里面空空的，只有一张褪色的照片，背面写着"1987级"。' },
+    { x: 1.5, z: boardZ + 2.5, name: 'chalk_box', text: '粉笔都断成了一截一截的，像是被什么东西用力捏碎的…' },
+    { x: -1, z: 2.5, name: 'old_book', text: '翻开书，第12页被撕掉了。页角有暗红色的污渍…是血吗？' },
+    { x: 2.2, z: -1.5, name: 'trash', text: '垃圾桶里有一团皱巴巴的纸条，上面歪歪扭扭写着两个字：别回头。' },
+    { x: -2.5, z: -2, name: 'window_look', text: '窗外一片漆黑。玻璃上映出的…好像不是你自己的影子。' },
+  ];
+  ambients.forEach(a => {
+    const marker = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.15, 0.3), new THREE.MeshStandardMaterial({ color: 0x555533, roughness: 0.9, transparent: true, opacity: 0.5 }));
+    marker.position.set(a.x, 0.3, a.z); marker.name = a.name; ambientTexts[a.name] = a.text;
+    sceneRoot.add(marker); interactiveObjects.push(marker);
+  });
 
   // 门（后墙 +Z）
   const doorW = 1.1, doorH = 2.3, doorZ = -boardZ;
@@ -453,12 +476,39 @@ function toggleDoor(): void {
   const targetAngle = doorClosed ? -Math.PI/2 : 0, startAngle = doorClosed ? 0 : -Math.PI/2;
   let progress = 0; const startTime = performance.now(); doorClosed = !doorClosed;
   function anim(now: number): void {
-    progress = Math.min((now - startTime) / 800, 1);
+    progress = Math.min((now - startTime) / 1000, 1);
     doorGroup.rotation.y = startAngle + (targetAngle - startAngle) * (1 - Math.pow(1 - progress, 3));
     if (progress < 1) requestAnimationFrame(anim);
-    else if (currentScene === SceneType.Classroom && !doorClosed) setTimeout(() => switchToHallway(), 500);
+    else if (currentScene === SceneType.Classroom && !doorClosed) {
+      // 门开后：短暂黑幕 → 旁白 → 切换场景
+      narration.say('门缓缓打开…走廊深处一片漆黑。', 3000);
+      const overlay = document.getElementById('overlay')!;
+      overlay.style.display = 'flex'; overlay.style.background = 'rgba(0,0,0,0.95)';
+      const msg = document.getElementById('msg-text')!;
+      msg.textContent = ''; document.getElementById('msg-input')!.style.display = 'none';
+      setTimeout(() => {
+        overlay.style.display = 'none';
+        switchToHallway();
+        // 烛台逐个亮起
+        sconces.forEach((s, i) => { s.visible = false; setTimeout(() => { s.visible = true; playSound(100+i*20,0.3,'sine',0.03); }, i * 600); });
+      }, 2000);
+    }
   }
-  requestAnimationFrame(anim); playSound(doorClosed ? 80 : 100, 0.4, 'sawtooth');
+  requestAnimationFrame(anim); playSound(doorClosed ? 80 : 100, 0.5, 'sawtooth', 0.06);
+}
+
+// 环境低频嗡嗡声
+function startAmbientHum(): void {
+  try {
+    const ctx = getAudio();
+    ambientOsc = ctx.createOscillator(); const gain = ctx.createGain();
+    ambientOsc.type = 'sine'; ambientOsc.frequency.value = 55;
+    const lfo = ctx.createOscillator(); const lfoGain = ctx.createGain();
+    lfo.frequency.value = 0.08; lfoGain.gain.value = 3;
+    lfo.connect(lfoGain); lfoGain.connect(ambientOsc.frequency);
+    gain.gain.value = 0.015; ambientOsc.connect(gain); gain.connect(ctx.destination);
+    ambientOsc.start(); lfo.start();
+  } catch {}
 }
 
 // ══════════════════════════════════════════════
@@ -482,6 +532,7 @@ function checkInteraction(): void {
     else if (root.name === 'clock' && !clockSolved) { hintEl.textContent = '按 E 查看挂钟'; if (keys.e) { keys.e = false; solveClock(); }}
     else if (root.name === 'door_group' && diarySolved && clockSolved) { hintEl.textContent = '按 E 打开门'; if (keys.e) { keys.e = false; toggleDoor(); }}
     else if (root.name === 'door_group') { hintEl.textContent = '门锁着…需要解开教室里的谜题'; }
+    else if (ambientTexts[root.name]) { hintEl.textContent = '按 E 查看'; if (keys.e) { keys.e = false; narration.say(ambientTexts[root.name], 5000); playSound(200,0.15,'sine',0.03); }}
   } else {
     if (root.name === 'door_group') { hintEl.textContent = doorClosed ? '按 E 打开门' : '门已打开'; if (keys.e && doorClosed) { keys.e = false; toggleDoor(); }}
   }
@@ -511,7 +562,7 @@ function solveClock(): void {
 // 主循环
 // ══════════════════════════════════════════════
 const clock3 = new THREE.Clock();
-let stepTimer = 0, candleCounter = 0;
+let stepTimer = 0, candleCounter = 0, walkBob = 0;
 
 function animate(): void {
   requestAnimationFrame(animate);
@@ -531,12 +582,15 @@ function animate(): void {
     const corrected = checkCollision(player.position, moveDelta);
     player.position.add(corrected);
     if (moving) player.rotation.y = Math.atan2(_fwd.x, _fwd.z);
+    // 走路起伏
+    if (moving) { walkBob += dt * 8; player.position.y = Math.abs(Math.sin(walkBob)) * 0.04; }
+    else { player.position.y = 0; walkBob = 0; }
 
     const b = currentScene === SceneType.Classroom ? CFG.classroom.bounds : CFG.corridor.bounds;
     player.position.x = Math.max(b.minX, Math.min(b.maxX, player.position.x));
     const zLim = (currentScene === SceneType.Corridor && doorClosed) ? CFG.corridor.bounds.minZ : (currentScene === SceneType.Corridor ? CFG.corridor.doorOpenMinZ : b.minZ);
     player.position.z = Math.max(zLim, Math.min(b.maxZ, player.position.z));
-    player.position.y = 0;
+    if (!moving) player.position.y = 0;
 
     if (moving) { stepTimer += dt; if (stepTimer > CFG.stepInterval) { stepTimer = 0; playStep(); } } else { stepTimer = CFG.stepInterval; }
 
@@ -567,5 +621,5 @@ function animate(): void {
 // ══════════════════════════════════════════════
 // 启动
 // ══════════════════════════════════════════════
-buildClassroom(); animate();
+buildClassroom(); startAmbientHum(); animate();
 window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
