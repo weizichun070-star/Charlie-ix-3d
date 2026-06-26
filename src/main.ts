@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
 
 // ── 全局 ──
 const scene = new THREE.Scene();
@@ -80,11 +79,105 @@ const knobMat = new THREE.MeshStandardMaterial({ color: 0xddaa44, roughness: 0.2
 const keys: Record<string, boolean> = {};
 document.addEventListener('keydown', e => { const k = e.key.toLowerCase(); if ('wasde'.includes(k)) { keys[k] = true; e.preventDefault(); }});
 document.addEventListener('keyup', e => { const k = e.key.toLowerCase(); if ('wasde'.includes(k)) { keys[k] = false; e.preventDefault(); }});
-const controls = new PointerLockControls(camera, renderer.domElement);
+// ── 角色（墨多多） ──
+const player = new THREE.Group();
+player.position.set(0, 0, 2);
+scene.add(player);
 
-renderer.domElement.addEventListener('click', () => { controls.lock(); });
-controls.addEventListener('lock', () => { (document.getElementById('info')!).textContent = 'WASD 移动 | 鼠标环顾 | E 交互'; });
-controls.addEventListener('unlock', () => { (document.getElementById('info')!).textContent = '点击画面锁定鼠标'; });
+function buildPlayerModel(): void {
+  const skin = new THREE.MeshStandardMaterial({ color: 0xf4d4a8, roughness: 0.7 });
+  const blueMat = new THREE.MeshStandardMaterial({ color: 0x3366aa, roughness: 0.6 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x222233, roughness: 0.5 });
+  const shoeMat = new THREE.MeshStandardMaterial({ color: 0x332211, roughness: 0.8 });
+
+  // 左脚
+  const lLeg = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.4, 0.16), darkMat);
+  lLeg.position.set(-0.1, 0.2, 0); player.add(lLeg);
+  const lShoe = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.08, 0.2), shoeMat);
+  lShoe.position.set(-0.1, 0.04, 0.02); player.add(lShoe);
+
+  // 右脚
+  const rLeg = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.4, 0.16), darkMat);
+  rLeg.position.set(0.1, 0.2, 0); player.add(rLeg);
+  const rShoe = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.08, 0.2), shoeMat);
+  rShoe.position.set(0.1, 0.04, 0.02); player.add(rShoe);
+
+  // 身体
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.5, 0.25), blueMat);
+  body.position.set(0, 0.65, 0); player.add(body);
+
+  // 左臂
+  const lArm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.4, 0.12), blueMat);
+  lArm.position.set(-0.28, 0.55, 0); player.add(lArm);
+  const lHand = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), skin);
+  lHand.position.set(-0.28, 0.3, 0); player.add(lHand);
+
+  // 右臂
+  const rArm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.4, 0.12), blueMat);
+  rArm.position.set(0.28, 0.55, 0); player.add(rArm);
+  const rHand = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), skin);
+  rHand.position.set(0.28, 0.3, 0); player.add(rHand);
+
+  // 头
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.32, 0.28), skin);
+  head.position.set(0, 1.08, 0); player.add(head);
+
+  // 头发
+  const hair = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.1, 0.3), darkMat);
+  hair.position.set(0, 1.28, 0); player.add(hair);
+  const hairFringe = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.06, 0.06), darkMat);
+  hairFringe.position.set(0, 1.22, 0.14); player.add(hairFringe);
+
+  // 眼睛
+  const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+  const lEye = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, 0.02), eyeMat);
+  lEye.position.set(-0.07, 1.13, 0.14); player.add(lEye);
+  const rEye = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, 0.02), eyeMat);
+  rEye.position.set(0.07, 1.13, 0.14); player.add(rEye);
+
+  // 嘴巴
+  const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.02, 0.02), eyeMat);
+  mouth.position.set(0, 1.04, 0.14); player.add(mouth);
+}
+buildPlayerModel();
+
+// player cast shadows from its children
+player.traverse(c => { if (c instanceof THREE.Mesh) { c.castShadow = true; c.receiveShadow = true; }});
+
+// ── 第三人称相机 ──
+const camOffset = new THREE.Vector3(0, 2.2, 4.5); // 相机在角色后方上方
+let camYaw = 0, camPitch = 0.3; // 角度
+let isLocked = false;
+
+function updateCamera(): void {
+  const target = new THREE.Vector3(player.position.x, player.position.y + 1.3, player.position.z);
+  const sinY = Math.sin(camYaw), cosY = Math.cos(camYaw);
+  const sinP = Math.sin(camPitch), cosP = Math.cos(camPitch);
+
+  const ox = cosY * camOffset.z;
+  const oz = sinY * camOffset.z;
+  const oy = camOffset.y * cosP;
+
+  camera.position.set(
+    target.x - ox,
+    target.y + oy,
+    target.z - oz
+  );
+  camera.lookAt(target);
+}
+
+renderer.domElement.addEventListener('click', () => { renderer.domElement.requestPointerLock(); });
+document.addEventListener('pointerlockchange', () => {
+  isLocked = document.pointerLockElement === renderer.domElement;
+  const infoEl = document.getElementById('info')!;
+  infoEl.textContent = isLocked ? 'WASD 移动 | 鼠标环顾 | E 交互' : '点击画面锁定鼠标';
+});
+document.addEventListener('mousemove', e => {
+  if (!isLocked) return;
+  camYaw -= e.movementX * 0.003;
+  camPitch -= e.movementY * 0.003;
+  camPitch = Math.max(-0.2, Math.min(1.2, camPitch));
+});
 
 const flashlight = new THREE.SpotLight(0xffeedd, 20, 12, Math.PI/7, 0.25, 0.6);
 flashlight.castShadow = true; flashlight.shadow.mapSize.set(512, 512);
@@ -333,8 +426,10 @@ function buildClassroom(): void {
     sceneRoot.add(dot);
   }
 
-  // 玩家起点 — 默认面向-Z（黑板在-Z方向）
-  camera.position.set(0, 1.6, 3);
+  // 玩家起点
+  player.position.set(0, 0, 2);
+  camYaw = 0; camPitch = 0.3;
+  updateCamera();
   flashlight.intensity = 5;
 
   setObjective('探索教室：找到地上的日记本 [E键交互]');
@@ -479,7 +574,9 @@ function buildHallway(): void {
   scene.add(new THREE.AmbientLight(0x111122, 0.3));
   flashlight.intensity = 25;
 
-  camera.position.set(0, 1.6, 1.5);
+  player.position.set(0, 0, 1.5);
+  camYaw = 0; camPitch = 0.3;
+  updateCamera();
   setObjective('探索黑贝街12号走廊...');
 }
 
@@ -523,7 +620,11 @@ const raycaster = new THREE.Raycaster();
 raycaster.far = 2.8;
 
 function checkInteraction(): void {
-  raycaster.set(camera.position, camera.getWorldDirection(new THREE.Vector3()));
+  // 从相机发射射线（第三人称相机看哪里，交互就检测哪里）
+  const lookDir = new THREE.Vector3().subVectors(
+    new THREE.Vector3(player.position.x, player.position.y + 1.3, player.position.z), camera.position
+  ).normalize();
+  raycaster.set(camera.position, lookDir);
   const hits = raycaster.intersectObjects(interactiveObjects, true);
   hintEl.textContent = '';
 
@@ -642,35 +743,42 @@ function animate(): void {
   requestAnimationFrame(animate);
   const dt = Math.min(clock3.getDelta(), 0.1);
 
-  if (controls.isLocked && document.getElementById('overlay')!.style.display !== 'flex') {
-    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-    fwd.y = 0; fwd.normalize();
-    const rgt = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
-    rgt.y = 0; rgt.normalize();
+  if (isLocked && document.getElementById('overlay')!.style.display !== 'flex') {
+    // 相机方向向量（水平面投影）
+    const fwd = new THREE.Vector3(-Math.sin(camYaw), 0, -Math.cos(camYaw)).normalize();
+    const rgt = new THREE.Vector3(Math.cos(camYaw), 0, -Math.sin(camYaw)).normalize();
 
     let moving = false;
-    if (keys.w) { camera.position.addScaledVector(fwd, moveSpeed * dt); moving = true; }
-    if (keys.s) { camera.position.addScaledVector(fwd, -moveSpeed * dt); moving = true; }
-    if (keys.a) { camera.position.addScaledVector(rgt, -moveSpeed * dt); moving = true; }
-    if (keys.d) { camera.position.addScaledVector(rgt, moveSpeed * dt); moving = true; }
+    if (keys.w) { player.position.addScaledVector(fwd, moveSpeed * dt); moving = true; }
+    if (keys.s) { player.position.addScaledVector(fwd, -moveSpeed * dt); moving = true; }
+    if (keys.a) { player.position.addScaledVector(rgt, -moveSpeed * dt); moving = true; }
+    if (keys.d) { player.position.addScaledVector(rgt, moveSpeed * dt); moving = true; }
 
-    // 教室边界
-    if (currentScene === 'classroom') {
-      camera.position.x = Math.max(-3.2, Math.min(3.2, camera.position.x));
-      camera.position.z = Math.max(-3.7, Math.min(3.7, camera.position.z));
-    } else {
-      camera.position.x = Math.max(-1.3, Math.min(1.3, camera.position.x));
-      const zLim = doorClosed ? -18.5 : -21;
-      camera.position.z = Math.max(zLim, Math.min(2.8, camera.position.z));
+    // 角色面朝移动方向
+    if (moving) {
+      const angle = Math.atan2(fwd.x, fwd.z);
+      player.rotation.y = angle;
     }
-    camera.position.y = 1.6;
+
+    // 场景边界
+    if (currentScene === 'classroom') {
+      player.position.x = Math.max(-3.2, Math.min(3.2, player.position.x));
+      player.position.z = Math.max(-3.7, Math.min(3.7, player.position.z));
+    } else {
+      player.position.x = Math.max(-1.3, Math.min(1.3, player.position.x));
+      const zLim = doorClosed ? -18.5 : -21;
+      player.position.z = Math.max(zLim, Math.min(2.8, player.position.z));
+    }
+    player.position.y = 0;
 
     if (moving) { stepTimer += dt; if (stepTimer > 0.45) { stepTimer = 0; playStep(); }}
     else { stepTimer = 0.45; }
 
+    updateCamera();
+
+    // 手电筒跟随相机
     flashlight.position.copy(camera.position);
-    flashlight.target.position.copy(camera.position)
-      .addScaledVector(camera.getWorldDirection(new THREE.Vector3()), 5);
+    flashlight.target.position.copy(player.position).add(new THREE.Vector3(0, 1.3, 0));
   }
 
   // 烛火闪烁
