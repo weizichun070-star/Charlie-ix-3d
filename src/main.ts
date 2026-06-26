@@ -79,17 +79,19 @@ const knobMat = new THREE.MeshStandardMaterial({ color: 0xddaa44, roughness: 0.2
 const keys: Record<string, boolean> = {};
 document.addEventListener('keydown', e => { const k = e.key.toLowerCase(); if ('wasde'.includes(k)) { keys[k] = true; e.preventDefault(); }});
 document.addEventListener('keyup', e => { const k = e.key.toLowerCase(); if ('wasde'.includes(k)) { keys[k] = false; e.preventDefault(); }});
-const euler = new THREE.Euler(0, 0, 0, 'YXZ');
+let yaw = Math.PI, pitch = 0; // 初始面向黑板（+Z方向）
 let isLocked = false;
 
 renderer.domElement.addEventListener('click', () => renderer.domElement.requestPointerLock());
 document.addEventListener('pointerlockchange', () => { isLocked = document.pointerLockElement === renderer.domElement; });
 document.addEventListener('mousemove', e => {
   if (!isLocked) return;
-  euler.setFromQuaternion(camera.quaternion);
-  euler.y -= e.movementX * 0.002; euler.x -= e.movementY * 0.002;
-  euler.x = Math.max(-Math.PI/3, Math.min(Math.PI/3, euler.x));
-  camera.quaternion.setFromEuler(euler);
+  yaw -= e.movementX * 0.002;
+  pitch -= e.movementY * 0.002;
+  pitch = Math.max(-Math.PI/3, Math.min(Math.PI/3, pitch));
+  camera.rotation.order = 'YXZ';
+  camera.rotation.y = yaw;
+  camera.rotation.x = pitch;
 });
 
 const flashlight = new THREE.SpotLight(0xffeedd, 20, 12, Math.PI/7, 0.25, 0.6);
