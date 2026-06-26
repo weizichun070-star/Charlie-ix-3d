@@ -137,10 +137,10 @@ function createHallway(): void {
   // 前墙（带门洞）
   createFrontWallWithDoor();
 
-  // 墙壁烛台
-  createSconce(-1.4, 1.8, -3);
-  createSconce(1.4, 1.8, -8);
-  createSconce(-1.4, 1.8, -13);
+  // 墙壁烛台 (wallX = 墙的x坐标)
+  createSconce(-hallW/2, 1.8, -3);
+  createSconce(hallW/2, 1.8, -8);
+  createSconce(-hallW/2, 1.8, -14);
 
   // 地上的杂物
   for (let i = 0; i < 8; i++) {
@@ -159,117 +159,179 @@ function createHallway(): void {
 
 function createFrontWallWithDoor(): void {
   const doorW = 1.2, doorH = 2.3;
+  const doorThick = 0.06;
   const topH = hallH - doorH;
   const sideW = (hallW - doorW) / 2;
+  const frameWidth = 0.08;
+  const frameDepth = 0.1;
 
   // 门上方的墙
   const topWall = new THREE.Mesh(new THREE.PlaneGeometry(doorW, topH), brickWallMat);
-  topWall.position.set(0, doorH + topH/2, DOOR_Z + 0.05);
+  topWall.position.set(0, doorH + topH/2, DOOR_Z);
   scene.add(topWall);
 
   // 门左侧墙
   const leftSide = new THREE.Mesh(new THREE.PlaneGeometry(sideW, hallH), brickWallMat);
-  leftSide.position.set(-doorW/2 - sideW/2, hallH/2, DOOR_Z + 0.05);
+  leftSide.position.set(-doorW/2 - sideW/2, hallH/2, DOOR_Z);
   scene.add(leftSide);
 
   // 门右侧墙
   const rightSide = new THREE.Mesh(new THREE.PlaneGeometry(sideW, hallH), brickWallMat);
-  rightSide.position.set(doorW/2 + sideW/2, hallH/2, DOOR_Z + 0.05);
+  rightSide.position.set(doorW/2 + sideW/2, hallH/2, DOOR_Z);
   scene.add(rightSide);
 
-  // 门框
-  const fThick = 0.12, fWidth = 0.1;
-  const fL = new THREE.Mesh(new THREE.BoxGeometry(fWidth, doorH, fThick), frameMat);
-  fL.position.set(-doorW/2, doorH/2, DOOR_Z + 0.05);
+  // 门框 - 左右竖条
+  const fL = new THREE.Mesh(new THREE.BoxGeometry(frameWidth, doorH, frameDepth), frameMat);
+  fL.position.set(-doorW/2, doorH/2, DOOR_Z);
+  fL.castShadow = true;
   scene.add(fL);
-  const fR = new THREE.Mesh(new THREE.BoxGeometry(fWidth, doorH, fThick), frameMat);
-  fR.position.set(doorW/2, doorH/2, DOOR_Z + 0.05);
+  const fR = new THREE.Mesh(new THREE.BoxGeometry(frameWidth, doorH, frameDepth), frameMat);
+  fR.position.set(doorW/2, doorH/2, DOOR_Z);
+  fR.castShadow = true;
   scene.add(fR);
-  const fT = new THREE.Mesh(new THREE.BoxGeometry(doorW + fWidth*2, fWidth, fThick), frameMat);
-  fT.position.set(0, doorH, DOOR_Z + 0.05);
+  // 门框 - 上横梁
+  const fT = new THREE.Mesh(new THREE.BoxGeometry(doorW + frameWidth, frameWidth, frameDepth), frameMat);
+  fT.position.set(0, doorH, DOOR_Z);
   scene.add(fT);
 
-  // 门板
-  const door = new THREE.Mesh(new THREE.BoxGeometry(doorW - 0.05, doorH - 0.05, 0.06), doorMat);
-  door.position.set(0, (doorH - 0.05)/2, DOOR_Z);
-  door.castShadow = true;
-  door.name = 'door_panel';
-  doorGroup.add(door);
+  // ── 门：hinge在左侧(x=-doorW/2)，门板在右侧展开 ──
+  doorGroup.position.set(-doorW/2, 0, DOOR_Z);
 
-  // 门把手（黄铜色，右侧）
-  const knobGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.03, 8);
-  const knobMat = new THREE.MeshStandardMaterial({ color: 0xddaa44, roughness: 0.3, metalness: 0.9 });
-  const knob = new THREE.Mesh(knobGeo, knobMat);
-  knob.rotation.x = Math.PI/2;
-  knob.position.set(0.45, doorH/2 - 0.1, 0.04);
-  knob.name = 'door_knob';
-  doorGroup.add(knob);
+  // 门板 (offset so left edge is at hinge origin)
+  const panelW = doorW - 0.04;
+  const panelH = doorH - 0.04;
+  const doorGeo = new THREE.BoxGeometry(panelW, panelH, doorThick);
+  // 把几何体向右偏移，让 hinge 在 x=0
+  doorGeo.translate(panelW/2, panelH/2, 0);
+  const doorPanel = new THREE.Mesh(doorGeo, doorMat);
+  doorPanel.castShadow = true;
+  doorPanel.receiveShadow = true;
+  doorPanel.name = 'door_panel';
+  doorGroup.add(doorPanel);
 
-  // 钥匙孔
-  const keyhole = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.012, 0.012, 0.01, 8),
+  // 门把手 — 在门右侧，把手中心在铰链右侧 (panelW - 0.08)m
+  const knobMat = new THREE.MeshStandardMaterial({ color: 0xddaa44, roughness: 0.25, metalness: 0.9 });
+  const knobX = panelW - 0.1;
+  const knobY = panelH * 0.45;
+
+  // 把手底座
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, 0.02, 12), knobMat);
+  base.position.set(knobX, knobY, doorThick/2 + 0.01);
+  doorGroup.add(base);
+
+  // 把手柄
+  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.12, 12), knobMat);
+  handle.rotation.z = Math.PI/2;
+  handle.position.set(knobX + 0.06, knobY, doorThick/2 + 0.01);
+  doorGroup.add(handle);
+
+  // 把手球头
+  const knobBall = new THREE.Mesh(new THREE.SphereGeometry(0.025, 12, 8), knobMat);
+  knobBall.position.set(knobX + 0.12, knobY, doorThick/2 + 0.01);
+  doorGroup.add(knobBall);
+
+  // 钥匙孔板
+  const keyPlate = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.02, 0.02, 0.005, 12),
     knobMat
   );
-  keyhole.rotation.x = Math.PI/2;
-  keyhole.position.set(0.35, doorH/2 - 0.1, 0.035);
-  doorGroup.add(keyhole);
+  keyPlate.position.set(knobX - 0.1, knobY, doorThick/2 + 0.005);
+  doorGroup.add(keyPlate);
 
-  doorGroup.position.set(0, 0, 0);
+  // 铰链装饰
+  for (let i = 0; i < 3; i++) {
+    const hinge = new THREE.Mesh(
+      new THREE.BoxGeometry(0.04, 0.08, 0.015),
+      new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.3, metalness: 0.8 })
+    );
+    hinge.position.set(0.02, panelH * (0.15 + i * 0.3), -doorThick/2 - 0.008);
+    doorGroup.add(hinge);
+  }
+
   scene.add(doorGroup);
 }
 
-function createSconce(x: number, y: number, z: number): void {
+function createSconce(wallX: number, y: number, z: number): void {
   const group = new THREE.Group();
-  // 支架
-  const bracket = new THREE.Mesh(
-    new THREE.BoxGeometry(0.06, 0.2, 0.06),
-    new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.5, metalness: 0.6 })
-  );
-  bracket.position.set(0, -0.1, 0);
-  group.add(bracket);
+  const ironMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.4, metalness: 0.7 });
 
-  // 火焰发光点
-  const flame = new THREE.PointLight(0xff8833, 1.5, 3);
-  flame.position.set(0, 0.05, 0.15);
-  group.add(flame);
+  // 壁板
+  const plate = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.25, 0.02), ironMat);
+  plate.position.set(0, 0, 0.01);
+  group.add(plate);
 
-  // 火苗
-  const fire = new THREE.Mesh(
-    new THREE.SphereGeometry(0.04, 6, 4),
-    new THREE.MeshBasicMaterial({ color: 0xffaa44 })
-  );
-  fire.position.set(0, 0.05, 0.15);
-  group.add(fire);
+  // 弯曲臂 - 用多个圆柱体拼接模拟弯曲
+  const armMat = ironMat;
+  // 水平伸出
+  const arm1 = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.25, 8), armMat);
+  arm1.rotation.z = Math.PI/2;
+  arm1.position.set(0.12, 0.08, 0);
+  group.add(arm1);
 
-  group.position.set(x, y, z);
+  // 竖直向上弯曲
+  const arm2 = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.15, 8), armMat);
+  arm2.position.set(0.22, 0.18, 0);
+  group.add(arm2);
+
+  // 烛台托
+  const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.04, 0.06, 12), ironMat);
+  cup.position.set(0.22, 0.27, 0);
+  group.add(cup);
+
+  // 蜡烛
+  const candleMat = new THREE.MeshStandardMaterial({ color: 0xeeeedd, roughness: 0.8 });
+  const candle = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.028, 0.08, 8), candleMat);
+  candle.position.set(0.22, 0.33, 0);
+  group.add(candle);
+
+  // 火焰 - 拉伸的球体模拟火苗形状
+  const flameGeo = new THREE.SphereGeometry(0.025, 8, 6);
+  flameGeo.scale(0.6, 1.6, 0.6);
+  const flameMat = new THREE.MeshBasicMaterial({ color: 0xff8833 });
+  const flameMesh = new THREE.Mesh(flameGeo, flameMat);
+  flameMesh.position.set(0.22, 0.39, 0);
+
+  // 火焰内芯（更亮）
+  const innerGeo = new THREE.SphereGeometry(0.012, 6, 4);
+  innerGeo.scale(0.6, 1.5, 0.6);
+  const innerFlame = new THREE.Mesh(innerGeo, new THREE.MeshBasicMaterial({ color: 0xffdd88 }));
+  innerFlame.position.set(0.22, 0.383, 0);
+  group.add(flameMesh);
+  group.add(innerFlame);
+
+  // 烛光
+  const pointLight = new THREE.PointLight(0xff8833, 1.8, 4, 1.5);
+  pointLight.position.set(0.22, 0.39, 0);
+  group.add(pointLight);
+
+  // 存储动画引用
+  group.userData = { flameMesh, innerFlame, pointLight, baseIntensity: 1.8 };
+
+  // 确定墙的方向：墙在 hallW/2 处
+  const side = wallX > 0 ? 1 : -1;
+  group.position.set(wallX - side * 0.06, y, z);
+  group.rotation.y = side > 0 ? -Math.PI/2 : Math.PI/2;
+
   scene.add(group);
+  sconces.push(group);
 }
+
+const sconces: THREE.Group[] = [];
 
 // ── 门开关动画 ──
 function toggleDoor(): void {
-  const doorPanel = doorGroup.children[0] as THREE.Mesh; // 门板是第一个子对象
-  if (!doorPanel) return;
-
   const targetAngle = doorClosed ? -Math.PI/2 : 0;
   const startAngle = doorClosed ? 0 : -Math.PI/2;
 
-  const doorH = 2.25;
-  doorPanel.position.set(doorClosed ? -0.6 : 0, doorH/2, 0);
-  doorPanel.geometry = new THREE.BoxGeometry(doorClosed ? 1.15 : 1.15, doorH, 0.06);
-
-  // 动画开关
   let progress = 0;
-  const duration = 800; // ms
+  const duration = 800;
   const startTime = performance.now();
   doorClosed = !doorClosed;
 
   function animateDoor(now: number): void {
     progress = Math.min((now - startTime) / duration, 1);
-    const eased = 1 - Math.pow(1 - progress, 3); // ease-out
-
-    const angle = startAngle + (targetAngle - startAngle) * eased;
-    doorPanel.rotation.y = angle;
-    doorPanel.position.x = -0.6 * Math.cos(Math.abs(angle));
+    const eased = 1 - Math.pow(1 - progress, 3);
+    doorGroup.rotation.y = startAngle + (targetAngle - startAngle) * eased;
 
     if (progress < 1) {
       requestAnimationFrame(animateDoor);
@@ -277,7 +339,6 @@ function toggleDoor(): void {
   }
   requestAnimationFrame(animateDoor);
 
-  // 开关门音效
   playSound(doorClosed ? 80 : 100, 0.4, 'sawtooth');
 }
 
@@ -407,6 +468,15 @@ function animate(): void {
     flashlight.target.position.copy(camera.position).addScaledVector(
       camera.getWorldDirection(new THREE.Vector3()), 5
     );
+  }
+
+  // 烛火闪烁
+  for (const s of sconces) {
+    if (!s.userData) continue;
+    const flicker = 0.85 + Math.random() * 0.3;
+    s.userData.pointLight.intensity = s.userData.baseIntensity * flicker;
+    const scl = 0.9 + Math.random() * 0.2;
+    s.userData.flameMesh.scale.set(0.6 * scl, 1.6 * scl, 0.6 * scl);
   }
 
   // 灰尘浮动
