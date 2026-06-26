@@ -130,13 +130,13 @@ function buildClassroom(): void {
   const wallGeoXY = new THREE.PlaneGeometry(roomW, roomH);
   const wallGeoZY = new THREE.PlaneGeometry(roomD, roomH);
 
-  // 后墙 (z = +roomD/2, 有黑板)
-  const backW = new THREE.Mesh(wallGeoXY, darkWallMat);
-  backW.position.set(0, roomH/2, roomD/2); sceneRoot.add(backW);
-
-  // 前墙 (z = -roomD/2, 有门通往走廊)
-  const frontW = new THREE.Mesh(wallGeoXY, wallMat);
+  // 前墙 (z = -roomD/2, 有黑板，默认视角正对)
+  const frontW = new THREE.Mesh(wallGeoXY, darkWallMat);
   frontW.position.set(0, roomH/2, -roomD/2); sceneRoot.add(frontW);
+
+  // 后墙 (z = +roomD/2, 有门通往走廊)
+  const backW = new THREE.Mesh(wallGeoXY, wallMat);
+  backW.position.set(0, roomH/2, roomD/2); sceneRoot.add(backW);
 
   // 左墙
   const leftW = new THREE.Mesh(wallGeoZY, wallMat);
@@ -146,21 +146,20 @@ function buildClassroom(): void {
   const rightW = new THREE.Mesh(wallGeoZY, wallMat);
   rightW.rotation.y = -Math.PI/2; rightW.position.set(roomW/2, roomH/2, 0); sceneRoot.add(rightW);
 
-  // 黑板
+  // 黑板 (在前墙 -Z)
+  const boardZ = -roomD/2;
   const board = new THREE.Mesh(
     new THREE.BoxGeometry(3, 1.2, 0.05),
     new THREE.MeshStandardMaterial({ color: 0x224422, roughness: 0.6 })
   );
-  board.position.set(0, 2.2, roomD/2 - 0.03);
+  board.position.set(0, 2.2, boardZ + 0.03);
   board.receiveShadow = true; sceneRoot.add(board);
 
-  // 黑板上的文字
-  // (用发光平面模拟粉笔字)
   const boardText = new THREE.Mesh(
     new THREE.PlaneGeometry(2.6, 0.8),
     new THREE.MeshBasicMaterial({ color: 0xaaccaa })
   );
-  boardText.position.set(0, 2.2, roomD/2 - 0.06);
+  boardText.position.set(0, 2.2, boardZ + 0.06);
   sceneRoot.add(boardText);
 
   // 讲台
@@ -168,7 +167,7 @@ function buildClassroom(): void {
     new THREE.BoxGeometry(1.2, 0.9, 0.6),
     new THREE.MeshStandardMaterial({ color: 0x6a5a3a, roughness: 0.7 })
   );
-  podium.position.set(0, 0.45, roomD/2 - 2.2);
+  podium.position.set(0, 0.45, boardZ + 2.2);
   podium.castShadow = true; podium.receiveShadow = true;
   sceneRoot.add(podium);
 
@@ -274,14 +273,13 @@ function buildClassroom(): void {
   diaryGlow.name = 'diary_glow';
   sceneRoot.add(diaryGlow);
 
-  // 挂钟 (后墙上)
+  // 挂钟 (在左侧墙上)
   const clockGroup = new THREE.Group();
   const clockFace = new THREE.Mesh(
     new THREE.CylinderGeometry(0.3, 0.3, 0.04, 24),
     new THREE.MeshStandardMaterial({ color: 0xeeeedd, roughness: 0.4 })
   );
   clockFace.rotation.x = Math.PI/2; clockGroup.add(clockFace);
-  // 钟面数字标记
   for (let h = 1; h <= 12; h++) {
     const ang = (h - 3) * Math.PI / 6;
     const mark = new THREE.Mesh(
@@ -292,15 +290,16 @@ function buildClassroom(): void {
     mark.rotation.z = ang;
     clockGroup.add(mark);
   }
-  clockGroup.position.set(0, 2.2, roomD/2 - 0.06);
+  clockGroup.position.set(-roomW/2 + 0.06, 2.2, -1);
+  clockGroup.rotation.y = Math.PI/2;
   clockGroup.name = 'clock';
   sceneRoot.add(clockGroup);
   interactiveObjects.push(clockGroup);
 
-  // 门（前墙，通往走廊）
+  // 门（后墙 +Z，通往走廊）
   const doorW = 1.1, doorH = 2.3;
   doorGroup = new THREE.Group();
-  doorGroup.position.set(-doorW/2, 0, -roomD/2);
+  doorGroup.position.set(-doorW/2, 0, roomD/2);
 
   const panelGeo = new THREE.BoxGeometry(doorW - 0.04, doorH - 0.04, 0.06);
   panelGeo.translate((doorW - 0.04)/2, (doorH - 0.04)/2, 0);
@@ -334,9 +333,8 @@ function buildClassroom(): void {
     sceneRoot.add(dot);
   }
 
-  // 玩家起点 — 面向黑板（+Z方向）
+  // 玩家起点 — 默认面向-Z（黑板在-Z方向）
   camera.position.set(0, 1.6, 3);
-  camera.rotation.set(0, Math.PI, 0); // yaw=PI looks at +Z
   flashlight.intensity = 5;
 
   setObjective('探索教室：找到地上的日记本 [E键交互]');
